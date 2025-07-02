@@ -17,20 +17,10 @@
 </head>
 <body>
 <div id="controls">
-  <label>Filter by Listing:<select id="listingFilter" multiple></select></label>
-  <label>Filter by Platform:<select id="platformFilter" multiple></select></label>
-  <button onclick="showBlockDateForm()">+ Block Dates</button>
+  <label>Listing Colors:</label>
+  <span id="colorControls"></span>
 </div>
 <div id="calendar"></div>
-<div id="blockDateModal" style="display:none;position:fixed;top:20%;left:50%;transform:translateX(-50%);background:#333;padding:20px;border-radius:8px;">
-  <h3>Block Dates</h3>
-  <label>Start: <input type="date" id="blockStart"></label><br>
-  <label>End: <input type="date" id="blockEnd"></label><br>
-  <label>Notes: <input type="text" id="blockNotes"></label><br>
-  <label>Apply to Listings:<select id="blockListings" multiple></select></label><br>
-  <button onclick="saveBlockDates()">Save</button>
-  <button onclick="closeBlockDateForm()">Cancel</button>
-</div>
 <script src="https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.8/index.global.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@fullcalendar/daygrid@6.1.8/index.global.min.js"></script>
 <script>
@@ -47,6 +37,7 @@ async function loadEvents() {
     end: item.end_date,
     color: item.color,
     extendedProps: {
+      bookingId: item.id,
       platform: item.platform,
       address: item.delivery_address,
       bookingLink: item.booking_link,
@@ -55,30 +46,34 @@ async function loadEvents() {
       type: item.type
     }
   }));
-  populateFilters();
+  populateColorControls();
   renderCalendar(allEvents);
 }
 
-function populateFilters() {
+function populateColorControls() {
+  const container = document.getElementById('colorControls');
   const listings = [...new Set(allEvents.map(e => e.extendedProps.listingId))];
-  const platforms = [...new Set(allEvents.map(e => e.extendedProps.platform))];
-  const listingSelect = document.getElementById('listingFilter');
-  const platformSelect = document.getElementById('platformFilter');
-  listings.forEach(id => listingSelect.innerHTML += `<option value="${id}">${id}</option>`);
-  platforms.forEach(p => platformSelect.innerHTML += `<option value="${p}">${p}</option>`);
-  document.getElementById('blockListings').innerHTML = listings.map(id => `<option value="${id}">${id}</option>`).join('');
-  listingSelect.onchange = platformSelect.onchange = () => applyFilters();
+  container.innerHTML = '';
+  listings.forEach(id => {
+    container.innerHTML += `<label>Listing ${id}: 
+      <select onchange="updateListingColor(${id}, this.value)">
+        <option value="#FFD700">Gold</option>
+        <option value="#1E90FF">Blue</option>
+        <option value="#FF4500">Red</option>
+        <option value="#32CD32">Green</option>
+        <option value="#808080">Gray</option>
+      </select>
+    </label>`;
+  });
 }
 
-function applyFilters() {
-  const selectedListings = [...document.getElementById('listingFilter').selectedOptions].map(o => o.value);
-  const selectedPlatforms = [...document.getElementById('platformFilter').selectedOptions].map(o => o.value);
-  const filtered = allEvents.filter(e =>
-    (selectedListings.length === 0 || selectedListings.includes(e.extendedProps.listingId.toString())) &&
-    (selectedPlatforms.length === 0 || selectedPlatforms.includes(e.extendedProps.platform))
-  );
-  calendar.removeAllEvents();
-  calendar.addEventSource(filtered);
+async function updateListingColor(listingId, color) {
+  await fetch('https://xfxa-cldj-sxth.n7e.xano.io/api:PYL3lpvT/update_listing_color', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ user_id: userId, listing_id: listingId, color: color })
+  });
+  alert('Color saved. Will appear on next load.');
 }
 
 function renderCalendar(events) {
@@ -95,37 +90,20 @@ function renderCalendar(events) {
     events: events,
     eventClick: function(info) {
       const p = info.event.extendedProps;
-      const mapLink = p.address ? `\nMap: https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.address)}` : '';
-      alert(`\n${info.event.title}\nPlatform: ${p.platform}\nNotes: ${p.notes || '-'}\nAddress: ${p.address || '-'}${mapLink}\nLink: ${p.bookingLink || '-'}`);
+      const newAddr = prompt(`Address for ${info.event.title}:`, p.address || '');
+      if (newAddr !== null) updateBookingAddress(p.bookingId, newAddr);
     }
   });
   calendar.render();
 }
 
-function showBlockDateForm() { document.getElementById('blockDateModal').style.display = 'block'; }
-function closeBlockDateForm() { document.getElementById('blockDateModal').style.display = 'none'; }
-
-async function saveBlockDates() {
-  const start = document.getElementById('blockStart').value;
-  const end = document.getElementById('blockEnd').value;
-  const notes = document.getElementById('blockNotes').value;
-  const listings = [...document.getElementById('blockListings').selectedOptions].map(o => o.value);
-  for (const listingId of listings) {
-    await fetch('https://xfxa-cldj-sxth.n7e.xano.io/api:PYL3lpvT/create_block_event', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        user_id: userId,
-        listing_id: listingId,
-        start_date: start,
-        end_date: end,
-        notes: notes,
-        type: 'custom'
-      })
-    });
-  }
-  closeBlockDateForm();
-  loadEvents();
+async function updateBookingAddress(bookingId, newAddress) {
+  await fetch('https://xfxa-cldj-sxth.n7e.xano.io/api:PYL3lpvT/update_booking_address', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ user_id: userId, booking_id: bookingId, address: newAddress })
+  });
+  alert('Address saved. Will appear on next load.');
 }
 
 loadEvents();
