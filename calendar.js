@@ -41,7 +41,7 @@
     const userId = params.get('user_id');
 
     async function loadEvents() {
-      const res = await fetch(`https://xfxa-cldj-sxth.n7e.xano.io/api:PYL3lpvT/fetch_booking_events`);
+      const res = await fetch(`https://xfxa-cldj-sxth.n7e.xano.io/api:PYL3lpvT/fetch_booking_events?user_id=${userId}`);
       const data = await res.json();
       return data.map(item => ({
         title: `${item.platform} - ${item.customer_name}`,
