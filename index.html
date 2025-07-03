@@ -1,56 +1,64 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang='en'>
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset='utf-8' />
   <title>Kampsync Calendar</title>
-  <link rel="stylesheet" href="index.global.min.css" />
+  <script src='https://cdn.jsdelivr.net/npm/fullcalendar-scheduler@6.1.18/index.global.min.js'></script>
   <style>
-    body { background: #1c1c1e; color: white; font-family: sans-serif; margin: 0; }
-    #calendar { max-width: 1000px; margin: 20px auto; padding: 10px; background: #2c2c2e; border-radius: 8px; }
-    .fc .fc-day-today { background: rgba(255, 215, 0, 0.2); border-radius: 50%; }
-    .fc-toolbar-title, .fc-button { color: white; }
+    body {
+      background: #1c1c1e;
+      color: white;
+      font-family: 'Helvetica Neue', sans-serif;
+      margin: 0;
+      padding: 0;
+    }
+    #calendar {
+      max-width: 1200px;
+      margin: 40px auto;
+      background: #2c2c2e;
+      padding: 10px;
+      border-radius: 8px;
+    }
   </style>
 </head>
 <body>
-  <div id="calendar"></div>
+  <div id='calendar'></div>
 
-  <script src="index.global.min.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async function() {
-      const calendarEl = document.getElementById('calendar');
-      const userId = new URLSearchParams(window.location.search).get('user_id') || '1';
+      var calendarEl = document.getElementById('calendar');
 
-      async function fetchEvents() {
-        const res = await fetch(`https://xfxa-cldj-sxth.n7e.xano.io/api:PYL3lpvT/fetch_booking_events?user_id=${userId}`);
-        const data = await res.json();
-        return data.map(item => ({
-          title: `${item.platform} - ${item.customer_name || 'N/A'}`,
-          start: item.start_date,
-          end: item.end_date,
-          color: item.color || '#3788d8'
-        }));
-      }
+      // replace with your user_id logic
+      const userId = 2;
 
-      const calendar = new FullCalendar.Calendar(calendarEl, {
-        initialView: 'dayGridMonth',
-        themeSystem: 'standard',
-        events: await fetchEvents(),
+      // fetch events
+      const res = await fetch(`https://xfxa-cldj-sxth.n7e.xano.io/api:PYL3lpvT/fetch_booking_events?user_id=${userId}`);
+      const data = await res.json();
+      const events = data.map(item => ({
+        title: `${item.platform} - ${item.customer_name}`,
+        start: item.start_date,
+        end: item.end_date
+      }));
+
+      // init calendar
+      var calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'resourceTimelineWeek',
+        events: events,
         dateClick: async function(info) {
-          if (confirm(`Block date ${info.dateStr}?`)) {
-            await fetch('https://xfxa-cldj-sxth.n7e.xano.io/api:PYL3lpvT/create_custom_event', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+          const endDate = prompt(`Enter end date (YYYY-MM-DD) for block starting ${info.dateStr}:`);
+          const notes = prompt("Enter notes for this block:");
+          if (endDate) {
+            await fetch("https://xfxa-cldj-sxth.n7e.xano.io/api:PYL3lpvT/create_custom_event", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 user_id: userId,
-                listing_id: 1, // default; or get from query param
                 start_date: info.dateStr,
-                end_date: info.dateStr,
-                notes: 'Custom block'
+                end_date: endDate,
+                notes: notes || ""
               })
             });
-            alert('Date blocked. Refreshing...');
-            location.reload();
+            alert("Custom block saved. Reload to see it.");
           }
         }
       });
