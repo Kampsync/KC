@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kampsync Calendar</title>
+  <link rel="stylesheet" href="index.global.min.css" />
+  <style>
+    body { background: #1c1c1e; color: white; font-family: sans-serif; margin: 0; }
+    #calendar { max-width: 1000px; margin: 20px auto; padding: 10px; background: #2c2c2e; border-radius: 8px; }
+    .fc .fc-day-today { background: rgba(255, 215, 0, 0.2); border-radius: 50%; }
+    .fc-toolbar-title, .fc-button { color: white; }
+  </style>
+</head>
+<body>
+  <div id="calendar"></div>
+
+  <script src="index.global.min.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async function() {
+      const calendarEl = document.getElementById('calendar');
+      const userId = new URLSearchParams(window.location.search).get('user_id') || '1';
+
+      async function fetchEvents() {
+        const res = await fetch(`https://xfxa-cldj-sxth.n7e.xano.io/api:PYL3lpvT/fetch_booking_events?user_id=${userId}`);
+        const data = await res.json();
+        return data.map(item => ({
+          title: `${item.platform} - ${item.customer_name || 'N/A'}`,
+          start: item.start_date,
+          end: item.end_date,
+          color: item.color || '#3788d8'
+        }));
+      }
+
+      const calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        themeSystem: 'standard',
+        events: await fetchEvents(),
+        dateClick: async function(info) {
+          if (confirm(`Block date ${info.dateStr}?`)) {
+            await fetch('https://xfxa-cldj-sxth.n7e.xano.io/api:PYL3lpvT/create_custom_event', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                user_id: userId,
+                listing_id: 1, // default; or get from query param
+                start_date: info.dateStr,
+                end_date: info.dateStr,
+                notes: 'Custom block'
+              })
+            });
+            alert('Date blocked. Refreshing...');
+            location.reload();
+          }
+        }
+      });
+
+      calendar.render();
+    });
+  </script>
+</body>
+</html>
