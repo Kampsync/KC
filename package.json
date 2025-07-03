@@ -2,7 +2,7 @@
   "name": "kampsync-calendar",
   "version": "1.0.0",
   "type": "module",
-  "main": "server.js",
+  "main": "calendar.js",
   "scripts": {
     "start": "node server.js"
   },
