@@ -1,10 +1,13 @@
-# Use nginx as the base image
-FROM nginx:alpine
+# Use node
+FROM node:18-alpine
 
-# Copy all your static site files into nginx's html folder
-COPY . /usr/share/nginx/html
+WORKDIR /usr/src/app
 
-# Expose HTTP port
-EXPOSE 80
+COPY package*.json ./
+RUN npm install
 
-# nginx will automatically start
+COPY . .
+
+EXPOSE 8080
+
+CMD ["npm", "start"]
