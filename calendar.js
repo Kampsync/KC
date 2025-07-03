@@ -53,16 +53,20 @@ async function loadEvents() {
 function populateColorControls() {
   const container = document.getElementById('colorControls');
   const listings = [...new Set(allEvents.map(e => e.extendedProps.listingId))];
+  const colors = [
+    ["#FFD700","Gold"], ["#1E90FF","Blue"], ["#FF4500","Red"], ["#32CD32","Green"], ["#808080","Gray"],
+    ["#8A2BE2","Purple"], ["#FF69B4","Pink"], ["#00CED1","DarkTurquoise"], ["#FF8C00","DarkOrange"],
+    ["#ADFF2F","GreenYellow"], ["#9932CC","DarkOrchid"], ["#FF1493","DeepPink"], ["#20B2AA","LightSeaGreen"],
+    ["#7FFF00","Chartreuse"], ["#DC143C","Crimson"], ["#00FA9A","MediumSpringGreen"], ["#FF6347","Tomato"],
+    ["#BA55D3","MediumOrchid"], ["#3CB371","MediumSeaGreen"], ["#FFDAB9","PeachPuff"],
+    ["#CD5C5C","IndianRed"], ["#66CDAA","MediumAquamarine"], ["#F08080","LightCoral"], ["#B22222","FireBrick"],
+    ["#DA70D6","Orchid"]
+  ];
   container.innerHTML = '';
   listings.forEach(id => {
+    let options = colors.map(([hex,name]) => `<option value="${hex}">${name}</option>`).join('');
     container.innerHTML += `<label>Listing ${id}: 
-      <select onchange="updateListingColor(${id}, this.value)">
-        <option value="#FFD700">Gold</option>
-        <option value="#1E90FF">Blue</option>
-        <option value="#FF4500">Red</option>
-        <option value="#32CD32">Green</option>
-        <option value="#808080">Gray</option>
-      </select>
+      <select onchange="updateListingColor(${id}, this.value)">${options}</select>
     </label>`;
   });
 }
