@@ -1,51 +1,19 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Kampsync Calendar</title>
-  <link href="https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.8/index.global.min.css" rel="stylesheet" />
-  <link href="https://cdn.jsdelivr.net/npm/@fullcalendar/daygrid@6.1.8/index.global.min.css" rel="stylesheet" />
-  <style>
-    body { background: #1c1c1e; color: white; font-family: 'Helvetica Neue', sans-serif; margin: 0; padding: 0; }
-    #controls { padding: 10px; text-align: center; }
-    #calendar { max-width: 1000px; margin: 20px auto; padding: 10px; background: #2c2c2e; border-radius: 8px; }
-    .fc .fc-daygrid-day-number { color: white; }
-    .fc .fc-day-today { background: rgba(255, 215, 0, 0.2); border-radius: 50%; }
-    input, select, button { margin: 5px; padding: 5px; }
-    #customModal { display:none; position:fixed; top:20%; left:50%; transform:translateX(-50%); background:#333; padding:20px; border-radius:8px; }
-  </style>
-</head>
-<body>
-<div id="controls">
-  <label>Listing Colors:</label>
-  <span id="colorControls"></span>
-</div>
-<div id="calendar"></div>
-<div id="customModal">
-  <h3>Block Dates</h3>
-  <label>Start: <input type="date" id="customStart"></label><br>
-  <label>End: <input type="date" id="customEnd"></label><br>
-  <label>Notes: <input type="text" id="customNotes"></label><br>
-  <label>Apply to Listings:<select id="customListings" multiple></select></label><br>
-  <button onclick="saveCustomEvent()">Save</button>
-  <button onclick="closeCustomModal()">Cancel</button>
-</div>
-<script src="https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.8/index.global.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@fullcalendar/daygrid@6.1.8/index.global.min.js"></script>
-<script>
+import { Calendar } from 'https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.8/index.global.min.js';
+import dayGridPlugin from 'https://cdn.jsdelivr.net/npm/@fullcalendar/daygrid@6.1.8/index.global.min.js';
+
 const calendarEl = document.getElementById('calendar');
 const userId = new URLSearchParams(window.location.search).get('user_id');
 let allEvents = [], calendar;
+const listingColors = {}; // local color overrides
 
 async function loadEvents() {
   const res = await fetch(`https://xfxa-cldj-sxth.n7e.xano.io/api:PYL3lpvT/fetch_booking_events?user_id=${userId}`);
   const data = await res.json();
   allEvents = data.map(item => ({
-    title: `${item.platform} - ${item.customer_name}`,
+    title: `${item.platform} - ${item.customer_name || ''}`,
     start: item.start_date,
     end: item.end_date,
-    color: item.color,
+    color: listingColors[item.listing_id] || item.color || '#FFD700',
     extendedProps: {
       bookingId: item.id,
       platform: item.platform,
@@ -64,21 +32,34 @@ async function loadEvents() {
 function populateColorControls() {
   const container = document.getElementById('colorControls');
   const listings = [...new Set(allEvents.map(e => e.extendedProps.listingId))];
-  const colors = [["#FFD700","Gold"],["#1E90FF","Blue"],["#FF4500","Red"],["#32CD32","Green"],["#808080","Gray"],["#8A2BE2","Purple"],["#FF69B4","Pink"],["#00CED1","DarkTurquoise"],["#FF8C00","DarkOrange"],["#ADFF2F","GreenYellow"],["#9932CC","DarkOrchid"],["#FF1493","DeepPink"],["#20B2AA","LightSeaGreen"],["#7FFF00","Chartreuse"],["#DC143C","Crimson"],["#00FA9A","MediumSpringGreen"],["#FF6347","Tomato"],["#BA55D3","MediumOrchid"],["#3CB371","MediumSeaGreen"],["#FFDAB9","PeachPuff"],["#CD5C5C","IndianRed"],["#66CDAA","MediumAquamarine"],["#F08080","LightCoral"],["#B22222","FireBrick"],["#DA70D6","Orchid"]];
+  const colors = [["#FFD700","Gold"],["#1E90FF","Blue"],["#FF4500","Red"],["#32CD32","Green"],["#808080","Gray"],
+    ["#8A2BE2","Purple"],["#FF69B4","Pink"],["#00CED1","DarkTurquoise"],["#FF8C00","DarkOrange"],
+    ["#ADFF2F","GreenYellow"],["#9932CC","DarkOrchid"],["#FF1493","DeepPink"],["#20B2AA","LightSeaGreen"],
+    ["#7FFF00","Chartreuse"],["#DC143C","Crimson"],["#00FA9A","MediumSpringGreen"],["#FF6347","Tomato"],
+    ["#BA55D3","MediumOrchid"],["#3CB371","MediumSeaGreen"],["#FFDAB9","PeachPuff"],["#CD5C5C","IndianRed"],
+    ["#66CDAA","MediumAquamarine"],["#F08080","LightCoral"],["#B22222","FireBrick"],["#DA70D6","Orchid"]];
   container.innerHTML = '';
   listings.forEach(id => {
-    let options = colors.map(([hex,name]) => `<option value=\"${hex}\">${name}</option>`).join('');
-    container.innerHTML += `<label>Listing ${id}: <select onchange=\"updateListingColor(${id}, this.value)\">${options}</select></label>`;
+    let options = colors.map(([hex,name]) => `<option value="${hex}">${name}</option>`).join('');
+    container.innerHTML += `<label>Listing ${id}: 
+      <select onchange="setListingColor(${id}, this.value)">${options}</select>
+    </label>`;
   });
+}
+
+function setListingColor(listingId, color) {
+  listingColors[listingId] = color;
+  renderCalendar(allEvents);
 }
 
 function populateListingOptions() {
   const listings = [...new Set(allEvents.map(e => e.extendedProps.listingId))];
-  document.getElementById('customListings').innerHTML = listings.map(id => `<option value=\"${id}\">${id}</option>`).join('');
+  document.getElementById('customListings').innerHTML = listings.map(id => `<option value="${id}">${id}</option>`).join('');
 }
 
 function renderCalendar(events) {
-  calendar = new FullCalendar.Calendar(calendarEl, {
+  if (calendar) calendar.destroy();
+  calendar = new Calendar(calendarEl, {
     plugins: [dayGridPlugin],
     initialView: 'dayGridMonth',
     dayCellDidMount: function(info) {
@@ -88,11 +69,19 @@ function renderCalendar(events) {
         info.el.style.borderRadius = '50%';
       }
     },
-    events: events,
+    events: events.map(e => ({
+      ...e,
+      color: listingColors[e.extendedProps.listingId] || e.color
+    })),
     eventClick: function(info) {
       const p = info.event.extendedProps;
-      const newAddr = prompt(`Address for ${info.event.title}:`, p.address || '');
-      if (newAddr !== null) updateBookingAddress(p.bookingId, newAddr);
+      let mapUrl = p.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.address)}` : '-';
+      alert(`Booking: ${info.event.title}
+Platform: ${p.platform}
+Notes: ${p.notes || '-'}
+Address: ${p.address || '-'}
+Map Link: ${mapUrl}
+Booking Link: ${p.bookingLink || '-'}`);
     },
     dateClick: function(info) {
       document.getElementById('customStart').value = info.dateStr;
@@ -104,7 +93,9 @@ function renderCalendar(events) {
   calendar.render();
 }
 
-function closeCustomModal() { document.getElementById('customModal').style.display = 'none'; }
+function closeCustomModal() {
+  document.getElementById('customModal').style.display = 'none';
+}
 
 async function saveCustomEvent() {
   const start = document.getElementById('customStart').value;
@@ -129,25 +120,8 @@ async function saveCustomEvent() {
   loadEvents();
 }
 
-async function updateListingColor(listingId, color) {
-  await fetch('https://xfxa-cldj-sxth.n7e.xano.io/api:PYL3lpvT/update_listing_color', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ user_id: userId, listing_id: listingId, color: color })
-  });
-  alert('Color saved. Will appear on next load.');
-}
-
-async function updateBookingAddress(bookingId, newAddress) {
-  await fetch('https://xfxa-cldj-sxth.n7e.xano.io/api:PYL3lpvT/update_booking_address', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ user_id: userId, booking_id: bookingId, address: newAddress })
-  });
-  alert('Address saved. Will appear on next load.');
-}
+window.setListingColor = setListingColor;
+window.closeCustomModal = closeCustomModal;
+window.saveCustomEvent = saveCustomEvent;
 
 loadEvents();
-</script>
-</body>
-</html>
