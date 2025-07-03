@@ -2,14 +2,52 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <script src="https://cdn.jsdelivr.net/npm/fullcalendar-scheduler@6.1.18/index.global.min.js"></script>
+  <title>Kampsync Calendar</title>
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet" />
   <style>
-    body { background: #1c1c1e; color: white; font-family: Helvetica, sans-serif; }
-    #calendar { max-width: 1400px; margin: 20px auto; background: #2c2c2e; border-radius: 8px; }
-    #modal { display:none; position:fixed; top:20%; left:50%; transform:translateX(-50%); background:#333; padding:20px; border-radius:8px; }
+    body {
+      background: #1c1c1e;
+      color: white;
+      font-family: Helvetica, sans-serif;
+      margin: 0;
+      padding: 0;
+    }
+    #controls {
+      padding: 10px;
+      text-align: center;
+      background: #2c2c2e;
+    }
+    #calendar {
+      max-width: 1000px;
+      margin: 20px auto;
+      background: #2c2c2e;
+      border-radius: 8px;
+      padding: 10px;
+    }
+    #modal {
+      display: none;
+      position: fixed;
+      top: 20%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #333;
+      padding: 20px;
+      border-radius: 8px;
+    }
+    input, select, button {
+      margin: 5px;
+      padding: 5px;
+    }
   </style>
 </head>
 <body>
+  <div id="controls">
+    <label><input type="checkbox" id="allListings" checked /> All Listings</label>
+    <span id="listingFilters"></span>
+    <span id="platformFilters"></span>
+  </div>
+
   <div id="calendar"></div>
 
   <div id="modal">
@@ -25,39 +63,92 @@
   </div>
 
   <script>
-    let allResources = [], calendar;
+    let allEvents = [], allListings = [], allPlatforms = [];
+    let calendar;
 
     async function loadData() {
       const userId = new URLSearchParams(window.location.search).get('user_id');
 
-      // 1) Fetch Listings
+      // Fetch listings for filters & modal
       const listingsRes = await fetch(`https://xfxa-cldj-sxth.n7e.xano.io/api:PYL3lpvT/fetch_listing_db?user_id=${userId}`);
-      const listingsData = await listingsRes.json();
-      allResources = listingsData.map(listing => ({
-        id: listing.id,
-        title: listing.name || `Listing ${listing.id}`
-      }));
-      populateListingSelect(allResources);
+      allListings = await listingsRes.json();
 
-      // 2) Fetch Bookings
+      populateListingFilters();
+      populateModalListings();
+
+      // Fetch bookings
       const bookingsRes = await fetch(`https://xfxa-cldj-sxth.n7e.xano.io/api:PYL3lpvT/fetch_booking_events?user_id=${userId}`);
       const bookingsData = await bookingsRes.json();
-      const events = bookingsData.map(booking => ({
-        id: booking.id,
-        title: `${booking.platform} - ${booking.customer_name}`,
-        start: booking.start_date,
-        end: booking.end_date,
-        resourceId: booking.listing_id,
-        color: booking.color || '#3788d8'
+      allEvents = bookingsData.map(b => ({
+        id: b.id,
+        title: `${b.platform} - ${b.customer_name}`,
+        start: b.start_date,
+        end: b.end_date,
+        listingId: b.listing_id,
+        platform: b.platform,
+        color: b.color || '#3788d8',
+        address: b.delivery_address,
+        notes: b.notes
       }));
 
-      // 3) Render Calendar
-      var calendarEl = document.getElementById('calendar');
+      allPlatforms = [...new Set(allEvents.map(e => e.platform))];
+      populatePlatformFilters();
+
+      renderCalendar(allEvents);
+    }
+
+    function populateListingFilters() {
+      const container = document.getElementById('listingFilters');
+      container.innerHTML = '';
+      allListings.forEach(listing => {
+        container.innerHTML += `<label><input type="checkbox" class="listingFilter" value="${listing.id}" checked /> ${listing.name || 'Listing '+listing.id}</label>`;
+      });
+    }
+
+    function populatePlatformFilters() {
+      const container = document.getElementById('platformFilters');
+      container.innerHTML = '';
+      allPlatforms.forEach(p => {
+        container.innerHTML += `<label><input type="checkbox" class="platformFilter" value="${p}" checked /> ${p}</label>`;
+      });
+    }
+
+    function populateModalListings() {
+      const select = document.getElementById('customListings');
+      select.innerHTML = allListings.map(l => `<option value="${l.id}">${l.name || 'Listing '+l.id}</option>`).join('');
+    }
+
+    function applyFilters() {
+      const selectedListings = [...document.querySelectorAll('.listingFilter:checked')].map(cb => cb.value);
+      const selectedPlatforms = [...document.querySelectorAll('.platformFilter:checked')].map(cb => cb.value);
+      const showAll = document.getElementById('allListings').checked;
+
+      const filtered = allEvents.filter(e =>
+        (showAll || selectedListings.includes(String(e.listingId))) &&
+        (selectedPlatforms.length === 0 || selectedPlatforms.includes(e.platform))
+      );
+
+      calendar.removeAllEvents();
+      calendar.addEventSource(filtered);
+    }
+
+    function renderCalendar(events) {
+      const calendarEl = document.getElementById('calendar');
       calendar = new FullCalendar.Calendar(calendarEl, {
-        initialView: 'resourceTimelineMonth',
-        resources: allResources,
+        initialView: 'dayGridMonth',
         events: events,
-        dateClick: function(info) {
+        dayCellDidMount(info) {
+          const today = new Date().toISOString().split('T')[0];
+          if (info.date.toISOString().split('T')[0] === today) {
+            info.el.style.backgroundColor = 'rgba(255, 215, 0, 0.2)';
+            info.el.style.borderRadius = '50%';
+          }
+        },
+        eventClick(info) {
+          const e = info.event.extendedProps;
+          alert(`Title: ${info.event.title}\nPlatform: ${e.platform}\nNotes: ${e.notes || '-'}\nAddress: ${e.address || '-'}`);
+        },
+        dateClick(info) {
           document.getElementById('customStart').value = info.dateStr;
           document.getElementById('customEnd').value = info.dateStr;
           document.getElementById('customNotes').value = '';
@@ -65,11 +156,6 @@
         }
       });
       calendar.render();
-    }
-
-    function populateListingSelect(resources) {
-      const select = document.getElementById('customListings');
-      select.innerHTML = resources.map(r => `<option value="${r.id}">${r.title}</option>`).join('');
     }
 
     async function saveCustomEvent() {
@@ -82,14 +168,8 @@
       for (const listingId of listings) {
         await fetch('https://xfxa-cldj-sxth.n7e.xano.io/api:PYL3lpvT/create_custom_event', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            user_id: userId,
-            listing_id: listingId,
-            start_date: start,
-            end_date: end,
-            notes: notes
-          })
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ user_id: userId, listing_id: listingId, start_date: start, end_date: end, notes })
         });
       }
       alert('Custom block saved. Reloading...');
@@ -101,7 +181,15 @@
       document.getElementById('modal').style.display = 'none';
     }
 
-    document.addEventListener('DOMContentLoaded', loadData);
+    document.addEventListener('DOMContentLoaded', () => {
+      loadData();
+      document.getElementById('allListings').addEventListener('change', applyFilters);
+      document.addEventListener('change', (e) => {
+        if (e.target.classList.contains('listingFilter') || e.target.classList.contains('platformFilter')) {
+          applyFilters();
+        }
+      });
+    });
   </script>
 </body>
 </html>
