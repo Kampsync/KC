@@ -5,33 +5,17 @@
   <title>Kampsync Calendar</title>
   <script src='https://cdn.jsdelivr.net/npm/fullcalendar-scheduler@6.1.18/index.global.min.js'></script>
   <style>
-    body {
-      background: #1c1c1e;
-      color: white;
-      font-family: 'Helvetica Neue', sans-serif;
-      margin: 0;
-      padding: 0;
-    }
-    #calendar {
-      max-width: 1200px;
-      margin: 40px auto;
-      background: #2c2c2e;
-      padding: 10px;
-      border-radius: 8px;
-    }
+    body { background: #1c1c1e; color: white; font-family: sans-serif; margin: 0; padding: 0; }
+    #calendar { max-width: 1200px; margin: 40px auto; background: #2c2c2e; padding: 10px; border-radius: 8px; }
   </style>
 </head>
 <body>
   <div id='calendar'></div>
-
   <script>
     document.addEventListener('DOMContentLoaded', async function() {
       var calendarEl = document.getElementById('calendar');
-
-      // replace with your user_id logic
       const userId = 2;
 
-      // fetch events
       const res = await fetch(`https://xfxa-cldj-sxth.n7e.xano.io/api:PYL3lpvT/fetch_booking_events?user_id=${userId}`);
       const data = await res.json();
       const events = data.map(item => ({
@@ -40,13 +24,12 @@
         end: item.end_date
       }));
 
-      // init calendar
       var calendar = new FullCalendar.Calendar(calendarEl, {
         initialView: 'resourceTimelineWeek',
         events: events,
         dateClick: async function(info) {
-          const endDate = prompt(`Enter end date (YYYY-MM-DD) for block starting ${info.dateStr}:`);
-          const notes = prompt("Enter notes for this block:");
+          const endDate = prompt(`End date for block starting ${info.dateStr}:`);
+          const notes = prompt("Notes?");
           if (endDate) {
             await fetch("https://xfxa-cldj-sxth.n7e.xano.io/api:PYL3lpvT/create_custom_event", {
               method: "POST",
@@ -58,11 +41,10 @@
                 notes: notes || ""
               })
             });
-            alert("Custom block saved. Reload to see it.");
+            alert("Saved. Refresh to see new block.");
           }
         }
       });
-
       calendar.render();
     });
   </script>
