@@ -2,75 +2,106 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Kampsync Calendar</title>
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar-scheduler@6.1.18/index.global.min.js"></script>
   <style>
-    body { background: #1c1c1e; color: white; font-family: Arial, sans-serif; margin:0; padding:0; }
-    #filter-panel { padding: 10px; background: #2c2c2e; display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
-    #calendar { max-width: 1000px; margin: 20px auto; }
-    .fc .fc-daygrid-day-number, .fc .fc-col-header-cell-cushion { color: white; }
-    .fc .fc-day-today { background: rgba(255,215,0,0.2); border-radius: 50%; }
+    body { background: #1c1c1e; color: white; font-family: Helvetica, sans-serif; }
+    #calendar { max-width: 1400px; margin: 20px auto; background: #2c2c2e; border-radius: 8px; }
+    #modal { display:none; position:fixed; top:20%; left:50%; transform:translateX(-50%); background:#333; padding:20px; border-radius:8px; }
   </style>
 </head>
 <body>
-<div id="filter-panel">
-  <label><input type="checkbox" id="allListings" checked> All Listings</label>
-  <div id="listing-filters"></div>
-  <div id="platform-filters"></div>
-</div>
+  <div id="calendar"></div>
 
-<div id="calendar"></div>
+  <div id="modal">
+    <h3>Block Dates</h3>
+    <label>Start: <input type="date" id="customStart"></label><br>
+    <label>End: <input type="date" id="customEnd"></label><br>
+    <label>Notes: <input type="text" id="customNotes"></label><br>
+    <label>Apply to Listings:
+      <select id="customListings" multiple></select>
+    </label><br>
+    <button onclick="saveCustomEvent()">Save</button>
+    <button onclick="closeModal()">Cancel</button>
+  </div>
 
-<script>
-const userId = new URLSearchParams(window.location.search).get('user_id');
-let allEvents = [], calendar;
+  <script>
+    let allResources = [], calendar;
 
-async function loadEvents() {
-  const res = await fetch(`https://xfxa-cldj-sxth.n7e.xano.io/api:PYL3lpvT/fetch_booking_events?user_id=${userId}`);
-  const data = await res.json();
-  allEvents = data.map(item => ({
-    title: `${item.platform} - ${item.customer_name}`,
-    start: item.start_date,
-    end: item.end_date,
-    color: item.color,
-    resourceId: item.listing_id,
-    extendedProps: { platform: item.platform }
-  }));
-  buildFilters();
-  renderCalendar(allEvents);
-}
+    async function loadData() {
+      const userId = new URLSearchParams(window.location.search).get('user_id');
 
-function buildFilters() {
-  const listings = [...new Set(allEvents.map(e => e.resourceId))];
-  const platforms = [...new Set(allEvents.map(e => e.extendedProps.platform))];
-  document.getElementById('listing-filters').innerHTML = listings.map(id => 
-    `<label><input type="checkbox" checked onchange="applyFilters()" value="${id}" class="listing-filter">${id}</label>`
-  ).join('');
-  document.getElementById('platform-filters').innerHTML = platforms.map(p => 
-    `<label><input type="checkbox" checked onchange="applyFilters()" value="${p}" class="platform-filter">${p}</label>`
-  ).join('');
-}
+      // 1) Fetch Listings
+      const listingsRes = await fetch(`https://xfxa-cldj-sxth.n7e.xano.io/api:PYL3lpvT/fetch_listing_db?user_id=${userId}`);
+      const listingsData = await listingsRes.json();
+      allResources = listingsData.map(listing => ({
+        id: listing.id,
+        title: listing.name || `Listing ${listing.id}`
+      }));
+      populateListingSelect(allResources);
 
-function applyFilters() {
-  const activeListings = Array.from(document.querySelectorAll('.listing-filter:checked')).map(cb => cb.value);
-  const activePlatforms = Array.from(document.querySelectorAll('.platform-filter:checked')).map(cb => cb.value);
-  const filtered = allEvents.filter(ev =>
-    activeListings.includes(ev.resourceId) && activePlatforms.includes(ev.extendedProps.platform)
-  );
-  calendar.removeAllEvents();
-  calendar.addEventSource(filtered);
-}
+      // 2) Fetch Bookings
+      const bookingsRes = await fetch(`https://xfxa-cldj-sxth.n7e.xano.io/api:PYL3lpvT/fetch_booking_events?user_id=${userId}`);
+      const bookingsData = await bookingsRes.json();
+      const events = bookingsData.map(booking => ({
+        id: booking.id,
+        title: `${booking.platform} - ${booking.customer_name}`,
+        start: booking.start_date,
+        end: booking.end_date,
+        resourceId: booking.listing_id,
+        color: booking.color || '#3788d8'
+      }));
 
-function renderCalendar(events) {
-  calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
-    initialView: 'resourceTimelineMonth',
-    resources: [...new Set(events.map(e => ({ id: e.resourceId, title: `Listing ${e.resourceId}` })))],
-    events: events
-  });
-  calendar.render();
-}
+      // 3) Render Calendar
+      var calendarEl = document.getElementById('calendar');
+      calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'resourceTimelineMonth',
+        resources: allResources,
+        events: events,
+        dateClick: function(info) {
+          document.getElementById('customStart').value = info.dateStr;
+          document.getElementById('customEnd').value = info.dateStr;
+          document.getElementById('customNotes').value = '';
+          document.getElementById('modal').style.display = 'block';
+        }
+      });
+      calendar.render();
+    }
 
-loadEvents();
-</script>
+    function populateListingSelect(resources) {
+      const select = document.getElementById('customListings');
+      select.innerHTML = resources.map(r => `<option value="${r.id}">${r.title}</option>`).join('');
+    }
+
+    async function saveCustomEvent() {
+      const userId = new URLSearchParams(window.location.search).get('user_id');
+      const start = document.getElementById('customStart').value;
+      const end = document.getElementById('customEnd').value;
+      const notes = document.getElementById('customNotes').value;
+      const listings = [...document.getElementById('customListings').selectedOptions].map(o => o.value);
+
+      for (const listingId of listings) {
+        await fetch('https://xfxa-cldj-sxth.n7e.xano.io/api:PYL3lpvT/create_custom_event', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_id: userId,
+            listing_id: listingId,
+            start_date: start,
+            end_date: end,
+            notes: notes
+          })
+        });
+      }
+      alert('Custom block saved. Reloading...');
+      closeModal();
+      location.reload();
+    }
+
+    function closeModal() {
+      document.getElementById('modal').style.display = 'none';
+    }
+
+    document.addEventListener('DOMContentLoaded', loadData);
+  </script>
 </body>
 </html>
