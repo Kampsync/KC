@@ -1,11 +1,14 @@
-FROM node:18
+# Use a minimal nginx image
+FROM nginx:alpine
 
-WORKDIR /app
+# Remove the default nginx website
+RUN rm -rf /usr/share/nginx/html/*
 
-COPY package.json ./
-RUN npm install
+# Copy all your static files into the nginx html folder
+COPY . /usr/share/nginx/html
 
-COPY . .
+# Expose port 80
+EXPOSE 80
 
-EXPOSE 8080
-CMD ["node", "server.js"]
+# Start nginx
+CMD ["nginx", "-g", "daemon off;"]
