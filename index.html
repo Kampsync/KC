@@ -38,19 +38,19 @@ let allListings = [], allEvents = [], calendar;
 
 async function loadData() {
   const userId = new URLSearchParams(window.location.search).get('user_id');
-  
-  // FETCH LISTINGS
-  const listingsRes = await fetch(`https://xfxa-cldj-sxth.n7e.xano.io/api:PYL3lpvT/fetch_listing_db?user_id=${userId}`);
+
+  // FIXED: remove ?user_id from listing fetch
+  const listingsRes = await fetch(`https://xfxa-cldj-sxth.n7e.xano.io/api:PYL3lpvT/fetch_listing_db`);
   const listingsData = await listingsRes.json();
   allListings = listingsData.map(listing => ({
     id: listing.id,
     title: listing.name || `Listing ${listing.id}`
   }));
-  
+
   populateFilters(allListings);
   populateListingSelect(allListings);
 
-  // FETCH BOOKINGS
+  // keep ?user_id for booking events
   const bookingsRes = await fetch(`https://xfxa-cldj-sxth.n7e.xano.io/api:PYL3lpvT/fetch_booking_events?user_id=${userId}`);
   const bookingsData = await bookingsRes.json();
   allEvents = bookingsData.map(booking => ({
@@ -68,7 +68,6 @@ async function loadData() {
     }
   }));
 
-  // RENDER CALENDAR
   renderCalendar();
 }
 
@@ -97,7 +96,7 @@ function populateListingSelect(listings) {
 function renderCalendar() {
   var calendarEl = document.getElementById('calendar');
   calendar = new FullCalendar.Calendar(calendarEl, {
-    schedulerLicenseKey: 'CC-Attribution-NonCommercial-NoDerivatives', // free license
+    schedulerLicenseKey: 'CC-Attribution-NonCommercial-NoDerivatives',
     initialView: 'resourceTimelineMonth',
     resources: allListings,
     events: allEvents,
