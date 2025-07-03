@@ -13,6 +13,7 @@
     .fc .fc-daygrid-day-number { color: white; }
     .fc .fc-day-today { background: rgba(255, 215, 0, 0.2); border-radius: 50%; }
     input, select, button { margin: 5px; padding: 5px; }
+    #customModal { display:none; position:fixed; top:20%; left:50%; transform:translateX(-50%); background:#333; padding:20px; border-radius:8px; }
   </style>
 </head>
 <body>
@@ -21,6 +22,15 @@
   <span id="colorControls"></span>
 </div>
 <div id="calendar"></div>
+<div id="customModal">
+  <h3>Block Dates</h3>
+  <label>Start: <input type="date" id="customStart"></label><br>
+  <label>End: <input type="date" id="customEnd"></label><br>
+  <label>Notes: <input type="text" id="customNotes"></label><br>
+  <label>Apply to Listings:<select id="customListings" multiple></select></label><br>
+  <button onclick="saveCustomEvent()">Save</button>
+  <button onclick="closeCustomModal()">Cancel</button>
+</div>
 <script src="https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.8/index.global.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@fullcalendar/daygrid@6.1.8/index.global.min.js"></script>
 <script>
@@ -47,37 +57,24 @@ async function loadEvents() {
     }
   }));
   populateColorControls();
+  populateListingOptions();
   renderCalendar(allEvents);
 }
 
 function populateColorControls() {
   const container = document.getElementById('colorControls');
   const listings = [...new Set(allEvents.map(e => e.extendedProps.listingId))];
-  const colors = [
-    ["#FFD700","Gold"], ["#1E90FF","Blue"], ["#FF4500","Red"], ["#32CD32","Green"], ["#808080","Gray"],
-    ["#8A2BE2","Purple"], ["#FF69B4","Pink"], ["#00CED1","DarkTurquoise"], ["#FF8C00","DarkOrange"],
-    ["#ADFF2F","GreenYellow"], ["#9932CC","DarkOrchid"], ["#FF1493","DeepPink"], ["#20B2AA","LightSeaGreen"],
-    ["#7FFF00","Chartreuse"], ["#DC143C","Crimson"], ["#00FA9A","MediumSpringGreen"], ["#FF6347","Tomato"],
-    ["#BA55D3","MediumOrchid"], ["#3CB371","MediumSeaGreen"], ["#FFDAB9","PeachPuff"],
-    ["#CD5C5C","IndianRed"], ["#66CDAA","MediumAquamarine"], ["#F08080","LightCoral"], ["#B22222","FireBrick"],
-    ["#DA70D6","Orchid"]
-  ];
+  const colors = [["#FFD700","Gold"],["#1E90FF","Blue"],["#FF4500","Red"],["#32CD32","Green"],["#808080","Gray"],["#8A2BE2","Purple"],["#FF69B4","Pink"],["#00CED1","DarkTurquoise"],["#FF8C00","DarkOrange"],["#ADFF2F","GreenYellow"],["#9932CC","DarkOrchid"],["#FF1493","DeepPink"],["#20B2AA","LightSeaGreen"],["#7FFF00","Chartreuse"],["#DC143C","Crimson"],["#00FA9A","MediumSpringGreen"],["#FF6347","Tomato"],["#BA55D3","MediumOrchid"],["#3CB371","MediumSeaGreen"],["#FFDAB9","PeachPuff"],["#CD5C5C","IndianRed"],["#66CDAA","MediumAquamarine"],["#F08080","LightCoral"],["#B22222","FireBrick"],["#DA70D6","Orchid"]];
   container.innerHTML = '';
   listings.forEach(id => {
-    let options = colors.map(([hex,name]) => `<option value="${hex}">${name}</option>`).join('');
-    container.innerHTML += `<label>Listing ${id}: 
-      <select onchange="updateListingColor(${id}, this.value)">${options}</select>
-    </label>`;
+    let options = colors.map(([hex,name]) => `<option value=\"${hex}\">${name}</option>`).join('');
+    container.innerHTML += `<label>Listing ${id}: <select onchange=\"updateListingColor(${id}, this.value)\">${options}</select></label>`;
   });
 }
 
-async function updateListingColor(listingId, color) {
-  await fetch('https://xfxa-cldj-sxth.n7e.xano.io/api:PYL3lpvT/update_listing_color', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ user_id: userId, listing_id: listingId, color: color })
-  });
-  alert('Color saved. Will appear on next load.');
+function populateListingOptions() {
+  const listings = [...new Set(allEvents.map(e => e.extendedProps.listingId))];
+  document.getElementById('customListings').innerHTML = listings.map(id => `<option value=\"${id}\">${id}</option>`).join('');
 }
 
 function renderCalendar(events) {
@@ -96,9 +93,49 @@ function renderCalendar(events) {
       const p = info.event.extendedProps;
       const newAddr = prompt(`Address for ${info.event.title}:`, p.address || '');
       if (newAddr !== null) updateBookingAddress(p.bookingId, newAddr);
+    },
+    dateClick: function(info) {
+      document.getElementById('customStart').value = info.dateStr;
+      document.getElementById('customEnd').value = info.dateStr;
+      document.getElementById('customNotes').value = '';
+      document.getElementById('customModal').style.display = 'block';
     }
   });
   calendar.render();
+}
+
+function closeCustomModal() { document.getElementById('customModal').style.display = 'none'; }
+
+async function saveCustomEvent() {
+  const start = document.getElementById('customStart').value;
+  const end = document.getElementById('customEnd').value;
+  const notes = document.getElementById('customNotes').value;
+  const listings = [...document.getElementById('customListings').selectedOptions].map(o => o.value);
+  for (const listingId of listings) {
+    await fetch('https://xfxa-cldj-sxth.n7e.xano.io/api:PYL3lpvT/create_custom_event', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        user_id: userId,
+        listing_id: listingId,
+        start_date: start,
+        end_date: end,
+        notes: notes
+      })
+    });
+  }
+  alert('Custom block saved. Will appear on next load.');
+  closeCustomModal();
+  loadEvents();
+}
+
+async function updateListingColor(listingId, color) {
+  await fetch('https://xfxa-cldj-sxth.n7e.xano.io/api:PYL3lpvT/update_listing_color', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ user_id: userId, listing_id: listingId, color: color })
+  });
+  alert('Color saved. Will appear on next load.');
 }
 
 async function updateBookingAddress(bookingId, newAddress) {
