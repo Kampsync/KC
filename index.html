@@ -1,52 +1,76 @@
 <!DOCTYPE html>
-<html lang='en'>
+<html lang="en">
 <head>
-  <meta charset='utf-8' />
+  <meta charset="utf-8" />
   <title>Kampsync Calendar</title>
-  <script src='https://cdn.jsdelivr.net/npm/fullcalendar-scheduler@6.1.18/index.global.min.js'></script>
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar-scheduler@6.1.18/index.global.min.js"></script>
   <style>
-    body { background: #1c1c1e; color: white; font-family: sans-serif; margin: 0; padding: 0; }
-    #calendar { max-width: 1200px; margin: 40px auto; background: #2c2c2e; padding: 10px; border-radius: 8px; }
+    body { background: #1c1c1e; color: white; font-family: Arial, sans-serif; margin:0; padding:0; }
+    #filter-panel { padding: 10px; background: #2c2c2e; display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+    #calendar { max-width: 1000px; margin: 20px auto; }
+    .fc .fc-daygrid-day-number, .fc .fc-col-header-cell-cushion { color: white; }
+    .fc .fc-day-today { background: rgba(255,215,0,0.2); border-radius: 50%; }
   </style>
 </head>
 <body>
-  <div id='calendar'></div>
-  <script>
-    document.addEventListener('DOMContentLoaded', async function() {
-      var calendarEl = document.getElementById('calendar');
-      const userId = 2;
+<div id="filter-panel">
+  <label><input type="checkbox" id="allListings" checked> All Listings</label>
+  <div id="listing-filters"></div>
+  <div id="platform-filters"></div>
+</div>
 
-      const res = await fetch(`https://xfxa-cldj-sxth.n7e.xano.io/api:PYL3lpvT/fetch_booking_events?user_id=${userId}`);
-      const data = await res.json();
-      const events = data.map(item => ({
-        title: `${item.platform} - ${item.customer_name}`,
-        start: item.start_date,
-        end: item.end_date
-      }));
+<div id="calendar"></div>
 
-      var calendar = new FullCalendar.Calendar(calendarEl, {
-        initialView: 'resourceTimelineWeek',
-        events: events,
-        dateClick: async function(info) {
-          const endDate = prompt(`End date for block starting ${info.dateStr}:`);
-          const notes = prompt("Notes?");
-          if (endDate) {
-            await fetch("https://xfxa-cldj-sxth.n7e.xano.io/api:PYL3lpvT/create_custom_event", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                user_id: userId,
-                start_date: info.dateStr,
-                end_date: endDate,
-                notes: notes || ""
-              })
-            });
-            alert("Saved. Refresh to see new block.");
-          }
-        }
-      });
-      calendar.render();
-    });
-  </script>
+<script>
+const userId = new URLSearchParams(window.location.search).get('user_id');
+let allEvents = [], calendar;
+
+async function loadEvents() {
+  const res = await fetch(`https://xfxa-cldj-sxth.n7e.xano.io/api:PYL3lpvT/fetch_booking_events?user_id=${userId}`);
+  const data = await res.json();
+  allEvents = data.map(item => ({
+    title: `${item.platform} - ${item.customer_name}`,
+    start: item.start_date,
+    end: item.end_date,
+    color: item.color,
+    resourceId: item.listing_id,
+    extendedProps: { platform: item.platform }
+  }));
+  buildFilters();
+  renderCalendar(allEvents);
+}
+
+function buildFilters() {
+  const listings = [...new Set(allEvents.map(e => e.resourceId))];
+  const platforms = [...new Set(allEvents.map(e => e.extendedProps.platform))];
+  document.getElementById('listing-filters').innerHTML = listings.map(id => 
+    `<label><input type="checkbox" checked onchange="applyFilters()" value="${id}" class="listing-filter">${id}</label>`
+  ).join('');
+  document.getElementById('platform-filters').innerHTML = platforms.map(p => 
+    `<label><input type="checkbox" checked onchange="applyFilters()" value="${p}" class="platform-filter">${p}</label>`
+  ).join('');
+}
+
+function applyFilters() {
+  const activeListings = Array.from(document.querySelectorAll('.listing-filter:checked')).map(cb => cb.value);
+  const activePlatforms = Array.from(document.querySelectorAll('.platform-filter:checked')).map(cb => cb.value);
+  const filtered = allEvents.filter(ev =>
+    activeListings.includes(ev.resourceId) && activePlatforms.includes(ev.extendedProps.platform)
+  );
+  calendar.removeAllEvents();
+  calendar.addEventSource(filtered);
+}
+
+function renderCalendar(events) {
+  calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
+    initialView: 'resourceTimelineMonth',
+    resources: [...new Set(events.map(e => ({ id: e.resourceId, title: `Listing ${e.resourceId}` })))],
+    events: events
+  });
+  calendar.render();
+}
+
+loadEvents();
+</script>
 </body>
 </html>
